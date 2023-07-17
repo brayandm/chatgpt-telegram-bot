@@ -14,6 +14,16 @@ logging.basicConfig(
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
+def get_usage():
+
+    with open("usage.txt", "r") as f:
+        return f.read()
+    
+def set_usage(usage):
+
+    with open("usage.txt", "w") as f:
+        f.write(usage)
+
 def is_user_allowed(user_id):
     users_allowed = os.environ.get("TELEGRAM_ALLOWED_CHAT_IDS").split(",")
 
@@ -37,6 +47,15 @@ async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.")
         return
     
+    usage = get_usage()
+
+    if usage == "":
+        usage = "0"
+    
+    if int(usage) > 50000:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="You have exceeded the usage limit.")
+        return
+    
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
@@ -47,6 +66,10 @@ async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ],
     )
     
+    usage = int(usage) + response["usage"]["total_tokens"]
+
+    set_usage(str(usage))
+
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response["choices"][0]["message"]["content"])
 
 if __name__ == '__main__':
