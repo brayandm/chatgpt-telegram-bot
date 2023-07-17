@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+
+    engine_server:
+        build:
+            context: .
+            dockerfile: docker/Dockerfile
+        volumes:
+            - .:/app
+        restart: always
