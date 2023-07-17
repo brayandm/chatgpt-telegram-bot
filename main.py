@@ -2,15 +2,17 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import filters, ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler
 import logging
+import openai
 import os
 
 load_dotenv()
-
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 def is_user_allowed(user_id):
     users_allowed = os.environ.get("TELEGRAM_ALLOWED_CHAT_IDS").split(",")
@@ -31,7 +33,17 @@ async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id, text="You are not allowed to use this bot.")
         return
     
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Chatgpt: hi")
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "user",
+                "content": update.message.text,
+            },
+        ],
+    )
+    
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=response["choices"][0]["message"]["content"])
 
 if __name__ == '__main__':
     application = ApplicationBuilder().token(os.environ.get("TELEGRAM_BOT_TOKEN")).build()
