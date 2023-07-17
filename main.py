@@ -33,6 +33,10 @@ async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id, text="You are not allowed to use this bot.")
         return
     
+    if len(update.message.text) > 500:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.")
+        return
+    
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
