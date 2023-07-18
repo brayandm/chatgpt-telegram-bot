@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import filters, ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler
+from functools import wraps
 import mysql.connector
 import logging
 import openai
@@ -28,6 +29,17 @@ logging.basicConfig(
 )
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
+
+def manage_db_connection(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        conn = mysql.connector.connect(**config)
+        try:
+            result = await func(conn, *args, **kwargs)
+        finally:
+            conn.close()
+        return result
+    return wrapper
 
 def get_quota(conn, user_id):
 
@@ -61,13 +73,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm ChatGPT, please talk to me!")
 
-async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@manage_db_connection
+async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if len(update.message.text) > 500:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.")
         return
-
-    conn = mysql.connector.connect(**config)
     
     quota = get_quota(conn, update.effective_user.id)
     
@@ -88,8 +99,6 @@ async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     quota -= response["usage"]["total_tokens"]
 
     set_quota(conn, update.effective_user.id, quota)
-
-    conn.close()
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response["choices"][0]["message"]["content"])
 
