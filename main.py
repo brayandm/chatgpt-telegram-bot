@@ -31,46 +31,44 @@ logging.basicConfig(
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-def get_usage():
+def get_quota(user_id):
 
-    with open("usage.txt", "r") as f:
-        return f.read()
+    cursor.execute("SELECT quota FROM users WHERE user_id = %s", (user_id,))
+
+    result = cursor.fetchone()
+
+    if result is None:
+        
+        cursor.execute("INSERT INTO users (user_id, quota) VALUES (%s, %s)", (user_id, 0))
+        
+        conn.commit()
+
+        return 0
     
-def set_usage(usage):
+    return result[0]
+    
+    
+def set_quota(user_id, quota):
 
-    with open("usage.txt", "w") as f:
-        f.write(usage)
+    cursor.execute("UPDATE users SET quota = %s WHERE user_id = %s", (quota, user_id))
 
-def is_user_allowed(user_id):
-    users_allowed = os.environ.get("TELEGRAM_ALLOWED_CHAT_IDS").split(",")
-
-    return str(user_id) in users_allowed
+    conn.commit()
+    
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    if not is_user_allowed(update.effective_user.id):
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="You are not allowed to use this bot.")
-        return
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm ChatGPT, please talk to me!")
 
 async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    if not is_user_allowed(update.effective_user.id):
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="You are not allowed to use this bot.")
-        return
     
     if len(update.message.text) > 500:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.")
         return
     
-    usage = get_usage()
-
-    if usage == "":
-        usage = "0"
+    quota = get_quota(update.effective_user.id)
     
-    if int(usage) > 50000:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="You have exceeded the usage limit.")
+    if quota <= 0:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="You have no quota left.")
         return
     
     response = openai.ChatCompletion.create(
@@ -83,9 +81,9 @@ async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ],
     )
     
-    usage = int(usage) + response["usage"]["total_tokens"]
+    quota -= response["usage"]["total_tokens"]
 
-    set_usage(str(usage))
+    set_quota(update.effective_user.id, quota)
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response["choices"][0]["message"]["content"])
 
