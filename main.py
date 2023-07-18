@@ -77,11 +77,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm ChatGPT, please talk to me!")
 
+def shrink_text(text, max_length=10):
+    
+    if len(text) > max_length:
+        return text[:max_length-3] + "..."
+    
+    return text
+
 def create_task(conn, user_id, input, output):
 
     cursor = conn.cursor()
 
-    cursor.execute("INSERT INTO tasks (user_id, input, output) VALUES (%s, %s, %s)", (user_id, input, output))
+    cursor.execute("INSERT INTO tasks (user_id, input, output) VALUES (%s, %s, %s)", (user_id, shrink_text(input), shrink_text(output)))
 
     conn.commit()
 
