@@ -85,6 +85,10 @@ def create_task(conn, user_id, input, output):
 
     conn.commit()
 
+async def send_typing_action(context, chat_id):
+    
+    await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+
 @manage_db_connection
 async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
     
@@ -97,6 +101,8 @@ async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
     if quota <= 0:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="You have no quota left.")
         return
+
+    await send_typing_action(context, update.effective_chat.id)
     
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
