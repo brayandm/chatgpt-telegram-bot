@@ -16,11 +16,9 @@ config = {
     "port": os.environ.get("DB_PORT"),
 }
 
-conn = mysql.connector.connect(**config)
+init_conn = mysql.connector.connect(**config)
 
-cursor = conn.cursor()
-
-cursor.execute(
+init_conn.cursor().execute(
     "CREATE TABLE IF NOT EXISTS users (id INT NOT NULL PRIMARY KEY AUTO_INCREMENT, user_id BIGINT, quota BIGINT)"
 )
 
@@ -31,7 +29,9 @@ logging.basicConfig(
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-def get_quota(user_id):
+def get_quota(conn, user_id):
+
+    cursor = conn.cursor()
 
     cursor.execute("SELECT quota FROM users WHERE user_id = %s", (user_id,))
 
@@ -48,7 +48,9 @@ def get_quota(user_id):
     return result[0]
     
     
-def set_quota(user_id, quota):
+def set_quota(conn, user_id, quota):
+
+    cursor = conn.cursor()
 
     cursor.execute("UPDATE users SET quota = %s WHERE user_id = %s", (quota, user_id))
 
@@ -64,8 +66,10 @@ async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(update.message.text) > 500:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.")
         return
+
+    conn = mysql.connector.connect(**config)
     
-    quota = get_quota(update.effective_user.id)
+    quota = get_quota(conn, update.effective_user.id)
     
     if quota <= 0:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="You have no quota left.")
@@ -83,7 +87,9 @@ async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     quota -= response["usage"]["total_tokens"]
 
-    set_quota(update.effective_user.id, quota)
+    set_quota(conn, update.effective_user.id, quota)
+
+    conn.close()
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response["choices"][0]["message"]["content"])
 
