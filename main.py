@@ -1,11 +1,28 @@
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import filters, ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler
+import mysql.connector
 import logging
 import openai
 import os
 
 load_dotenv()
+
+config = {
+    "user": os.environ.get("DB_USERNAME"),
+    "password": os.environ.get("DB_PASSWORD"),
+    "host": os.environ.get("DB_HOST"),
+    "database": os.environ.get("DB_DATABASE"),
+    "port": os.environ.get("DB_PORT"),
+}
+
+conn = mysql.connector.connect(**config)
+
+cursor = conn.cursor()
+
+cursor.execute(
+    "CREATE TABLE IF NOT EXISTS users (id INT NOT NULL PRIMARY KEY AUTO_INCREMENT, user_id BIGINT, quota BIGINT)"
+)
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
