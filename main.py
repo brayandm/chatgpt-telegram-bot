@@ -77,7 +77,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm ChatGPT, please talk to me!")
 
-def shrink_text(text, max_length=10):
+def shrink_text(text, max_length=5000):
     
     if len(text) > max_length:
         return text[:max_length-3] + "..."
