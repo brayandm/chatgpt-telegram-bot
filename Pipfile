@@ -7,6 +7,7 @@ name = "pypi"
 python-telegram-bot = "*"
 python-dotenv = "*"
 openai = "*"
+mysql-connector-python = "*"
 
 [dev-packages]
 
