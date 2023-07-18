@@ -23,6 +23,10 @@ init_conn.cursor().execute(
     "CREATE TABLE IF NOT EXISTS users (id INT NOT NULL PRIMARY KEY AUTO_INCREMENT, user_id BIGINT, quota BIGINT)"
 )
 
+init_conn.cursor().execute(
+    "CREATE TABLE IF NOT EXISTS tasks (id INT NOT NULL PRIMARY KEY AUTO_INCREMENT, user_id BIGINT, input VARCHAR(5000), output VARCHAR(5000))"
+)
+
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -73,6 +77,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm ChatGPT, please talk to me!")
 
+def create_task(conn, user_id, input, output):
+
+    cursor = conn.cursor()
+
+    cursor.execute("INSERT INTO tasks (user_id, input, output) VALUES (%s, %s, %s)", (user_id, input, output))
+
+    conn.commit()
+
 @manage_db_connection
 async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
     
@@ -99,6 +111,8 @@ async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
     quota -= response["usage"]["total_tokens"]
 
     set_quota(conn, update.effective_user.id, quota)
+
+    create_task(conn, update.effective_user.id, update.message.text, response["choices"][0]["message"]["content"])
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response["choices"][0]["message"]["content"])
 
