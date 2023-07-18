@@ -92,14 +92,14 @@ async def send_typing_action(context, chat_id):
 @manage_db_connection
 async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
     
-    if len(update.message.text) > 500:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.")
-        return
-    
     quota = get_quota(conn, update.effective_user.id)
     
     if quota <= 0:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="You have no quota left.")
+        return
+    
+    if len(update.message.text) > 500:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.")
         return
 
     await send_typing_action(context, update.effective_chat.id)
