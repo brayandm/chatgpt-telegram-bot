@@ -24,7 +24,7 @@ config = {
 init_conn = mysql.connector.connect(**config)
 
 init_conn.cursor().execute(
-    "CREATE TABLE IF NOT EXISTS users (id INT NOT NULL PRIMARY KEY AUTO_INCREMENT, user_id BIGINT, quota BIGINT)"
+    "CREATE TABLE IF NOT EXISTS users (id INT NOT NULL PRIMARY KEY AUTO_INCREMENT, user_id BIGINT, quota BIGINT, token_usage BIGINT)"
 )
 
 init_conn.cursor().execute(
@@ -59,7 +59,25 @@ def get_quota(conn, user_id):
 
     if result is None:
         
-        cursor.execute("INSERT INTO users (user_id, quota) VALUES (%s, %s)", (user_id, 0))
+        cursor.execute("INSERT INTO users (user_id, quota, token_usage) VALUES (%s, %s, %s)", (user_id, 0, 0))
+        
+        conn.commit()
+
+        return 0
+    
+    return result[0]
+
+def get_token_usage(conn, user_id):
+
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT token_usage FROM users WHERE user_id = %s", (user_id,))
+
+    result = cursor.fetchone()
+
+    if result is None:
+        
+        cursor.execute("INSERT INTO users (user_id, quota, token_usage) VALUES (%s, %s, %s)", (user_id, 0, 0))
         
         conn.commit()
 
@@ -73,6 +91,14 @@ def set_quota(conn, user_id, quota):
     cursor = conn.cursor()
 
     cursor.execute("UPDATE users SET quota = %s WHERE user_id = %s", (quota, user_id))
+
+    conn.commit()
+
+def set_token_usage(conn, user_id, token_usage):
+    
+    cursor = conn.cursor()
+
+    cursor.execute("UPDATE users SET token_usage = %s WHERE user_id = %s", (token_usage, user_id))
 
     conn.commit()
     
@@ -113,6 +139,8 @@ async def send_typing_action(context, chat_id):
 async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     quota = get_quota(conn, update.effective_user.id)
+
+    token_usage = get_token_usage(conn, update.effective_user.id)
     
     if quota <= 0:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="You have no quota left.", reply_markup=markup)
@@ -175,13 +203,18 @@ async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     thread.join()
     
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=response["choices"][0]["message"]["content"], reply_markup=markup)
+    
     quota -= response["usage"]["total_tokens"]
 
-    set_quota(conn, update.effective_user.id, quota)
-
+    token_usage += response["usage"]["total_tokens"]
+    
     create_task(conn, update.effective_user.id, update.message.text, response["choices"][0]["message"]["content"])
+    
+    set_quota(conn, update.effective_user.id, quota)   
 
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=response["choices"][0]["message"]["content"], reply_markup=markup)
+    set_token_usage(conn, update.effective_user.id, token_usage) 
+
 
 @manage_db_connection
 async def get_user_quota(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
