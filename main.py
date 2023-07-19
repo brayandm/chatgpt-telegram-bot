@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import filters, ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler
 from functools import wraps
 import mysql.connector
@@ -10,6 +10,8 @@ import time
 import os
 
 load_dotenv()
+
+markup = ReplyKeyboardMarkup([["/quota"]])
 
 config = {
     "user": os.environ.get("DB_USERNAME"),
@@ -75,10 +77,6 @@ def set_quota(conn, user_id, quota):
     conn.commit()
     
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm ChatGPT, please talk to me!")
-
 def shrink_text(text, max_length=5000):
     
     if len(text) > max_length:
@@ -117,11 +115,11 @@ async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
     quota = get_quota(conn, update.effective_user.id)
     
     if quota <= 0:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="You have no quota left.")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="You have no quota left.", reply_markup=markup)
         return
     
     if len(update.message.text) > 500:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.", reply_markup=markup)
         return
     
     response = None
@@ -183,15 +181,28 @@ async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     create_task(conn, update.effective_user.id, update.message.text, response["choices"][0]["message"]["content"])
 
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=response["choices"][0]["message"]["content"])
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=response["choices"][0]["message"]["content"], reply_markup=markup)
+
+@manage_db_connection
+async def get_user_quota(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        
+        quota = get_quota(conn, update.effective_user.id)
+        
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"You have {quota} tokens left.", reply_markup=markup)
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm ChatGPT, please talk to me!", reply_markup=markup)
 
 if __name__ == '__main__':
     application = ApplicationBuilder().token(os.environ.get("TELEGRAM_BOT_TOKEN")).build()
     
     start_handler = CommandHandler('start', start)
     chatgpt_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), chatgpt)
+    quota_handler = CommandHandler('quota', get_user_quota)
 
     application.add_handler(start_handler)
     application.add_handler(chatgpt_handler)
+    application.add_handler(quota_handler)
     
     application.run_polling()
