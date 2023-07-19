@@ -3,8 +3,10 @@ from telegram import Update
 from telegram.ext import filters, ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler
 from functools import wraps
 import mysql.connector
+import threading
 import logging
 import openai
+import time
 import os
 
 load_dotenv()
@@ -109,34 +111,6 @@ async def send_typing_action(context, chat_id):
     
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
-def get_chatgpt_response(conn, user_id, text):
-
-    last_bot_message = get_last_bot_message(conn, user_id)
-    
-    chat = [
-        {
-            "role": "system",
-            "content": "You are a helpful assistant. Also your answers are brief and to the point."
-        }
-    ]
-
-    if last_bot_message is not None:
-
-        chat.append({
-            "role": "assistant",
-            "content": last_bot_message
-        })
-
-    chat.append({
-        "role": "user",
-        "content": text
-    })
-
-    return openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=chat,
-    )
-
 @manage_db_connection
 async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
     
@@ -149,10 +123,53 @@ async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(update.message.text) > 500:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.")
         return
+    
+    response = None
 
-    await send_typing_action(context, update.effective_chat.id)
+    def get_chatgpt_response(conn, user_id, text):
 
-    response = get_chatgpt_response(conn, update.effective_user.id, update.message.text)
+        nonlocal response
+
+        last_bot_message = get_last_bot_message(conn, user_id)
+        
+        chat = [
+            {
+                "role": "system",
+                "content": "You are a helpful assistant. Also your answers are brief and to the point."
+            }
+        ]
+
+        if last_bot_message is not None:
+
+            chat.append({
+                "role": "assistant",
+                "content": last_bot_message
+            })
+
+        chat.append({
+            "role": "user",
+            "content": text
+        })
+
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=chat,
+        )
+
+    thread = threading.Thread(target=get_chatgpt_response, args=(conn, update.effective_user.id, update.message.text))
+
+    thread.start()
+
+    while True:
+
+        if not thread.is_alive():
+            break
+
+        await send_typing_action(context, update.effective_chat.id)
+
+        time.sleep(5)
+
+    thread.join()
     
     quota -= response["usage"]["total_tokens"]
 
