@@ -92,6 +92,19 @@ def create_task(conn, user_id, input, output):
 
     conn.commit()
 
+def get_last_bot_message(conn, user_id):
+
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT output FROM tasks WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user_id,))
+
+    result = cursor.fetchone()
+
+    if result is None:
+        return None
+    
+    return result[0]
+
 async def send_typing_action(context, chat_id):
     
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
@@ -110,15 +123,31 @@ async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await send_typing_action(context, update.effective_chat.id)
+
+    last_bot_message = get_last_bot_message(conn, update.effective_user.id)
     
+    chat = [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant. Also your answers are brief and to the point."
+        }
+    ]
+
+    if last_bot_message is not None:
+
+        chat.append({
+            "role": "assistant",
+            "content": last_bot_message
+        })
+
+    chat.append({
+        "role": "user",
+        "content": update.message.text
+    })
+
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "user",
-                "content": update.message.text,
-            },
-        ],
+        messages=chat,
     )
     
     quota -= response["usage"]["total_tokens"]
