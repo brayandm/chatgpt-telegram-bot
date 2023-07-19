@@ -11,7 +11,7 @@ import os
 
 load_dotenv()
 
-markup = ReplyKeyboardMarkup([["/quota"]])
+markup = ReplyKeyboardMarkup([["💰 Quota"]])
 
 config = {
     "user": os.environ.get("DB_USERNAME"),
@@ -198,8 +198,8 @@ if __name__ == '__main__':
     application = ApplicationBuilder().token(os.environ.get("TELEGRAM_BOT_TOKEN")).build()
     
     start_handler = CommandHandler('start', start)
-    chatgpt_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), chatgpt)
-    quota_handler = CommandHandler('quota', get_user_quota)
+    quota_handler = MessageHandler(filters.Regex('💰 Quota'), get_user_quota)
+    chatgpt_handler = MessageHandler(filters.TEXT & (~filters.COMMAND) & (~filters.Regex('💰 Quota')), chatgpt)
 
     application.add_handler(start_handler)
     application.add_handler(chatgpt_handler)
