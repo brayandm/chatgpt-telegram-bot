@@ -230,7 +230,7 @@ async def get_user_usage(conn, update: Update, context: ContextTypes.DEFAULT_TYP
 
     token_usage = get_token_usage(conn, update.effective_user.id)
     
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=f"You have used {token_usage} tokens.", reply_markup=markup)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=f"You have used {token_usage} tokens in total.", reply_markup=markup)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
