@@ -11,7 +11,7 @@ import os
 
 load_dotenv()
 
-markup = ReplyKeyboardMarkup([["💰 Quota"]])
+markup = ReplyKeyboardMarkup([["💰 Quota", "📈 Usage"]])
 
 config = {
     "user": os.environ.get("DB_USERNAME"),
@@ -219,9 +219,18 @@ async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
 @manage_db_connection
 async def get_user_quota(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
         
-        quota = get_quota(conn, update.effective_user.id)
-        
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"You have {quota} tokens left.", reply_markup=markup)
+    quota = get_quota(conn, update.effective_user.id)
+
+    quota = max(quota, 0)
+    
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=f"You have {quota} tokens left.", reply_markup=markup)
+
+@manage_db_connection
+async def get_user_usage(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    token_usage = get_token_usage(conn, update.effective_user.id)
+    
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=f"You have used {token_usage} tokens.", reply_markup=markup)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -232,10 +241,12 @@ if __name__ == '__main__':
     
     start_handler = CommandHandler('start', start)
     quota_handler = MessageHandler(filters.Regex('💰 Quota'), get_user_quota)
+    usage_handler = MessageHandler(filters.Regex('📈 Usage'), get_user_usage)
     chatgpt_handler = MessageHandler(filters.TEXT & (~filters.COMMAND) & (~filters.Regex('💰 Quota')), chatgpt)
 
     application.add_handler(start_handler)
-    application.add_handler(chatgpt_handler)
     application.add_handler(quota_handler)
+    application.add_handler(usage_handler)
+    application.add_handler(chatgpt_handler)
     
     application.run_polling()
