@@ -109,22 +109,9 @@ async def send_typing_action(context, chat_id):
     
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
-@manage_db_connection
-async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
-    
-    quota = get_quota(conn, update.effective_user.id)
-    
-    if quota <= 0:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="You have no quota left.")
-        return
-    
-    if len(update.message.text) > 500:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.")
-        return
+def get_chatgpt_response(conn, user_id, text):
 
-    await send_typing_action(context, update.effective_chat.id)
-
-    last_bot_message = get_last_bot_message(conn, update.effective_user.id)
+    last_bot_message = get_last_bot_message(conn, user_id)
     
     chat = [
         {
@@ -142,13 +129,30 @@ async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat.append({
         "role": "user",
-        "content": update.message.text
+        "content": text
     })
 
-    response = openai.ChatCompletion.create(
+    return openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=chat,
     )
+
+@manage_db_connection
+async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    
+    quota = get_quota(conn, update.effective_user.id)
+    
+    if quota <= 0:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="You have no quota left.")
+        return
+    
+    if len(update.message.text) > 500:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your message is too long.")
+        return
+
+    await send_typing_action(context, update.effective_chat.id)
+
+    response = get_chatgpt_response(conn, update.effective_user.id, update.message.text)
     
     quota -= response["usage"]["total_tokens"]
 
