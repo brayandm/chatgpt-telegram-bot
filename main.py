@@ -160,14 +160,20 @@ async def chatgpt(conn, update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     thread.start()
 
+    start_time = None
+
     while True:
 
         if not thread.is_alive():
             break
 
-        await send_typing_action(context, update.effective_chat.id)
+        if start_time is None or time.time() - start_time > 5:
 
-        time.sleep(5)
+            start_time = time.time()
+
+            await send_typing_action(context, update.effective_chat.id)
+
+        time.sleep(0.1)
 
     thread.join()
     
